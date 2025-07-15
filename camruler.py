@@ -519,6 +519,9 @@ while 1:
         # small crosshairs (after getting frame1)
         draw.crosshairs(frame0,5,weight=2,color='green')    
     
+        # object counter
+        object_count = 0
+
         # loop over the contours
         for c in contours:
 
@@ -537,6 +540,9 @@ while 1:
             # if the contour is too large, ignore it
             elif percent > 60:
                     continue
+
+            # count object
+            object_count += 1
 
             # convert to center, then distance
             x1c,y1c = conv(x1-(cx),y1-(cy))
@@ -560,6 +566,9 @@ while 1:
                 draw.add_text(frame0,f'{ylen:.2f}',x2+4,(y1+y2)/2,middle=True,color='red')
             else:
                 draw.add_text(frame0,f'{ylen:.2f}',x1-4,(y1+y2)/2,middle=True,right=True,color='red')
+
+        # add object count to text
+        text.append(f'OBJECTS FOUND: {object_count}')
 
     #-------------------------------
     # dimension mode
