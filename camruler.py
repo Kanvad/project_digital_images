@@ -2,26 +2,18 @@
 # imports
 #-------------------------------
 
-# builtins
-import os
-import sys
-import time
-import traceback
-from math import hypot
-from datetime import datetime
-import json
+#Thư viện dùng trong chương trình này:
+import os,sys,time,traceback #os: tương tác với hệ thống(file), sys: kiểm soát chương trình, time: xử lý thời gian, traceback: xử lý lỗi(exception)
+from math import hypot #hypot: dùng để tính cạnh huyền trong tam giác vuông 
+from datetime import datetime #datetime: xử lý ngày giờ
+import json 
 
-# must be installed using pip
-import numpy as np
-import cv2
+import numpy as np #xử lý mảng và tính ma trận
+import cv2 #xử lý ảnh và video
 
-# local clayton libs
-import frame_capture
-import frame_draw
+import frame_capture #module để lấy khung hình từ camera
+import frame_draw #module để vẽ lên khung hình
 
-#-------------------------------
-# default settings
-#-------------------------------
 
 # camera values
 camera_id = 0
@@ -30,21 +22,19 @@ camera_height = 1080
 camera_frame_rate = 30
 camera_fourcc = cv2.VideoWriter_fourcc(*"MJPG")
 
-# auto measure settings
-auto_percent = 0.2 
-auto_threshold = 127
-auto_blur = 5
+auto_percent = 0.2 # tối đa 20% của vật thể đo dc
+auto_threshold = 127 # ngưỡng để phân biệt vật thể với nền (0-255)
+auto_blur = 5 
 
-# normalization settings
-norm_alpha = 0
-norm_beta = 255
+norm_alpha = 0 # gtnn sau khi chuẩn hóa ảnh (0)
+norm_beta = 255 # gtln sau khi chuẩn hóa ảnh (255)
 
 # counting variables
-object_count = 0
+object_count = 0 # số lượng vật thể được đếm trong mỗi khung hình
 
 # history settings
 history_file = 'camruler_history.json'
-max_history_entries = 100
+max_history_entries = 100 # số lượng tối đa các mục trong lịch sử đo lường (vd:100 mục)
 
 # capture settings
 capture_folder = 'captured_objects'
@@ -52,7 +42,7 @@ capture_format = 'jpg'
 capture_quality = 95  # for JPG (0-100)
 
 #-------------------------------
-# measurement history class
+# measurement history class (tạo lớp lịch sử đo lường)
 #-------------------------------
 
 class MeasurementHistory:
@@ -63,7 +53,7 @@ class MeasurementHistory:
         self.load_history()
 
     def load_history(self):
-        """Load measurement history from file"""
+        """tải lịch sử đo lường từ file"""
         if os.path.exists(self.filename):
             try:
                 with open(self.filename, 'r', encoding='utf-8') as f:
@@ -72,7 +62,7 @@ class MeasurementHistory:
                 self.measurements = []
     
     def save_history(self):
-        """Save measurement history to file"""
+        """Lưu lịch sử đo lường vào file"""
         try:
             with open(self.filename, 'w', encoding='utf-8') as f:
                 json.dump(self.measurements, f, indent=2, ensure_ascii=False)
@@ -80,25 +70,25 @@ class MeasurementHistory:
             print(f"Error saving history: {e}")
 
     def add_measurement(self, measurement_type, x_len, y_len, l_len, area, avg_len=None, auto_mode=False):
-        """Add a new measurement to history"""
+        """Thêm một đo lường mới vào lịch sử"""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         measurement = {
             'timestamp': timestamp,
-            'type': measurement_type,
-            'x_length': round(x_len, 2),
-            'y_length': round(y_len, 2),
-            'diagonal_length': round(l_len, 2),
-            'area': round(area, 2),
-            'unit': unit_suffix,
-            'auto_mode': auto_mode
+            'type': measurement_type, # 'tự động' hoặc 'thủ công'
+            'x_length': round(x_len, 2), # chiều dài trục x 
+            'y_length': round(y_len, 2), # chiều dài trục y
+            'diagonal_length': round(l_len, 2), # chiều dài đường chéo
+            'area': round(area, 2), # diện tích hình chữ nhật
+            'unit': unit_suffix, # đơn vị đo lường (vd: mm)
+            'auto_mode': auto_mode 
         }
 
         if avg_len:
-            measurement['average_length'] = round(avg_len, 2)
+            measurement['average_length'] = round(avg_len, 2) #nếu có giá trị chiều dài trung bình thì thêm vào bản ghi
         self.measurements.append(measurement)
 
-        # Keep only the last max_entries measurements
+        # giới han số lượng mục trong lịch sử đo lường (vd: 100 mục gần nhất)
         if len(self.measurements) > self.max_entries:
             self.measurements = self.measurements[-self.max_entries:]
         
@@ -106,17 +96,17 @@ class MeasurementHistory:
         print(f"HISTORY: Saved measurement - X:{x_len:.2f}, Y:{y_len:.2f}, L:{l_len:.2f}, Area:{area:.2f}")
     
     def get_recent_measurements(self, count=5):
-        """Get recent measurements"""
+        """Lấy lịch sử đo lường gần đây"""
         return self.measurements[-count:] if len(self.measurements) >= count else self.measurements
     
     def clear_history(self):
-        """Clear all measurements"""
+        """Xóa tất cả lịch sử đo lường"""
         self.measurements = []
         self.save_history()
         print("HISTORY: cleared all measurements")
 
     def export_to_csv(self, filename=None):
-        """Export history to CSV file"""
+        """Xuất lịch sử vào file CSV"""
         if not filename:
             filename = f"camruler_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 
@@ -136,19 +126,19 @@ class MeasurementHistory:
             return False
 
 #-------------------------------
-# read config file
+# Đọc file config
 #-------------------------------
 
 configfile = 'camruler_config.csv'
 if os.path.isfile(configfile):
     with open(configfile) as f:
-        for line in f:
+        for line in f:                # lặp từng dòng trong file config
             line = line.strip()
-            if line and line[0] != '#' and (',' in line or '=' in line):
+            if line and line[0] != '#' and (',' in line or '=' in line): # nếu dòng k rỗng, k bắt đầu bằng # và có ',' hoặc '='
                 if ',' in line:
-                    item,value = [x.strip() for x in line.split(',',1)]
+                    item,value = [x.strip() for x in line.split(',',1)] # dùng split để tách dòng thành 2 phần tại dấu phẩy
                 elif '=' in line:
-                    item,value = [x.strip() for x in line.split('=',1)]
+                    item,value = [x.strip() for x in line.split('=',1)] # nếu k có dấu , thì dùng dấu '=' để tách
                 else:
                     continue                        
                 if item in 'camera_id camera_width camera_height camera_frame_rate camera_fourcc auto_percent auto_threshold auto_blur norm_alpha norm_beta'.split():
@@ -185,7 +175,7 @@ frate = camera.camera_frame_rate
 print('CAMERA:',[camera.camera_source,width,height,area,frate])
 
 #-------------------------------
-# frame drawing/text module 
+# Khởi tạo module vẽ và hiển thị văn bản lên khung hình 
 #-------------------------------
 
 draw = frame_draw.DRAW()
@@ -193,15 +183,16 @@ draw.width = width
 draw.height = height
 
 #-------------------------------
-# measurement history initialization
+#  measurement history initialization (khởi tạo)
 #-------------------------------
 
 history = MeasurementHistory(history_file, max_history_entries)
 
 #-------------------------------
-# conversion (pixels to measure)
+# cChuyển đổi đơn vị (pixel -> mm)
 #-------------------------------
 
+# đơn vị đo lường
 unit_suffix = 'mm'
 pixel_base = 10
 cal_range = 72
@@ -209,14 +200,17 @@ cal = dict([(x,cal_range/dm) for x in range(0,int(dm)+1,pixel_base)])
 cal_base = 5
 cal_last = None
 
+# Cập nhật hiệu chuẩn
 def cal_update(x,y,unit_distance):
-    pixel_distance = hypot(x,y)
-    scale = abs(unit_distance/pixel_distance)
-    target = baseround(abs(pixel_distance),pixel_base)
+    pixel_distance = hypot(x,y)  # tính khoảng cách pixel từ điểm gốc đến điểm (x,y)
+    scale = abs(unit_distance/pixel_distance) # tính tỷ lệ chuyển đổi từ pixel -> đơn vị đo thật
+    target = baseround(abs(pixel_distance),pixel_base)  #làm tròn khoảng cách pixel đến bội số của pixel_base
 
+    # khoảng giá trị cần hiệu chuẩn (low-high)
     low = target*scale - (cal_base/2)
     high = target*scale + (cal_base/2)
 
+    # tìm điểm bắt đầu
     start = target
     if unit_distance <= cal_base:
         start = 0
@@ -224,6 +218,7 @@ def cal_update(x,y,unit_distance):
         while start*scale > low:
             start -= pixel_base
 
+    # tìm điểm kết thúc
     stop = target
     if unit_distance >= baseround(cal_range,pixel_base):
         high = max(cal.keys())
@@ -231,10 +226,12 @@ def cal_update(x,y,unit_distance):
         while stop*scale < high:
             stop += pixel_base
 
+    # cập nhật giá trị scale vào cal[]
     for x in range(start,stop+1,pixel_base):
         cal[x] = scale
         print(f'CAL: {x} {scale}')
 
+# Đọc file hiệu chuẩn thủ công (nếu có)
 calfile = 'camruler_cal.csv'
 if os.path.isfile(calfile):
     with open(calfile) as f:
@@ -246,7 +243,7 @@ if os.path.isfile(calfile):
                     print(f'LOAD: {pixels} {scale}')
                     cal[int(pixels)] = float(scale)
 
-def conv(x,y):
+def conv(x,y): # Chuyển đổi pixel sang đơn vị đo lường
     d = distance(0,0,x,y)
     scale = cal[baseround(d,pixel_base)]
     return x*scale,y*scale
@@ -261,7 +258,7 @@ def distance(x1,y1,x2,y2):
 # define frames
 #-------------------------------
 
-framename = "CamRuler + Object Counting + Shape Detection"
+framename = "CAMRULER_NHOM11_NMXLAS"
 cv2.namedWindow(framename,flags=cv2.WINDOW_NORMAL|cv2.WINDOW_GUI_NORMAL)
 cv2.setWindowProperty(framename, cv2.WND_PROP_TOPMOST, 1)
 
@@ -269,17 +266,18 @@ cv2.setWindowProperty(framename, cv2.WND_PROP_TOPMOST, 1)
 # key events
 #-------------------------------
 
+# các phím tắt để điều khiển chương trình
 key_last = 0
 key_flags = {'config':False,   # c key
-             'auto':False,     # a key (measure dimensions)
-             'count':False,    # o key (count objects)
+             'auto':False,     # a key (đo kích thước)
+             'count':False,    # o key (đếm số lượng vật thể)
              'thresh':False,   # t key
              'percent':False,  # p key
              'norms':False,    # n key
              'rotate':False,   # r key
              'lock':False,     # 
              'history':False,  # h key
-             'hshape':False   # s key (shape classification)
+             'hshape':False   # s key (phân loại hình dạng)
              }
 
 def key_flags_clear():
@@ -289,7 +287,6 @@ def key_flags_clear():
             key_flags[key] = False
 
 def key_event(key):
-    
     global key_last, key_flags, mouse_mark, cal_last
 
     # config mode
@@ -370,14 +367,14 @@ def key_event(key):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = os.path.join(capture_folder, f"object_{timestamp}.{capture_format}")
         
-        # Create folder if not exists
+        # Tạo folder nếu chưa tồn tại
         if not os.path.exists(capture_folder):
             os.makedirs(capture_folder)
         
-        # Get current frame
+        # Lấy khung hình hiện tại
         frame_copy = frame0.copy()
         
-        # If in measurement mode, draw info on captured image
+        # Nếu đang ở chế độ đo lường, vẽ thông tin vào captured image
         if mouse_mark and not key_flags['auto'] and not key_flags['count']:
             x1, y1 = mouse_mark
             x2, y2 = mouse_now
@@ -388,11 +385,11 @@ def key_event(key):
             y1 += cy
             y2 += cy
             
-            # Draw measurement info
-            cv2.rectangle(frame_copy, (x1, y1), (x2, y2), (0, 0, 255), 2)
-            cv2.line(frame_copy, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            # Vẽ thông tin đo lường
+            cv2.rectangle(frame_copy, (x1, y1), (x2, y2), (0, 0, 255), 2) # vẽ hình chữ nhật quanh đối tượng
+            cv2.line(frame_copy, (x1, y1), (x2, y2), (0, 255, 0), 2) # vẽ đường chéo
             
-            # Add text info
+            # Thêm thông tin văn bản
             x1c, y1c = conv(x1 - cx, (y1 - cy) * -1)
             x2c, y2c = conv(x2 - cx, (y2 - cy) * -1)
             xlen = abs(x1c - x2c)
@@ -405,7 +402,7 @@ def key_event(key):
             cv2.putText(frame_copy, f"Time: {timestamp}", (10, 90), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
-        # Save image
+        # Lưu ảnh 
         if capture_format.lower() in ('jpg', 'jpeg'):
             cv2.imwrite(filename, frame_copy, [int(cv2.IMWRITE_JPEG_QUALITY), capture_quality])
         else:
@@ -420,9 +417,9 @@ def key_event(key):
 # mouse events
 #-------------------------------
 
-mouse_raw = (0,0)
-mouse_now = (0,0)
-mouse_mark = None
+mouse_raw  = (0,0) # tọa độ hiện tại của chuột (pixels từ góc trên bên trái)
+mouse_now  = (0,0) # pixels từ tâm của khung hình
+mouse_mark = None  # lần click chuột gần nhất (pixels từ tâm của khung hình)
 
 def mouse_event(event,x,y,flags,parameters):
     global mouse_raw, mouse_now, mouse_mark, key_last
@@ -432,7 +429,7 @@ def mouse_event(event,x,y,flags,parameters):
         auto_percent = 5*(x/width)*(y/height)
     elif key_flags['thresh']:
         auto_threshold = int(255*x/width)
-        auto_blur = int(20*y/height) | 1
+        auto_blur = int(20*y/height) | 1  # đảm bảo auto_blur là số lẻ
     elif key_flags['norms']:
         norm_alpha = int(64*x/width)
         norm_beta = min(255,int(128+(128*y/height)))
@@ -469,10 +466,12 @@ def mouse_event(event,x,y,flags,parameters):
                 x2, y2 = mouse_now
                 x1c, y1c = conv(x1, y1)
                 x2c, y2c = conv(x2, y2)
-                xlen = abs(x1c-x2c)
-                ylen = abs(y1c-y2c)
+                xlen = abs(x1c-x2c) # chiều dài trục x (giá trị tuyệt đối)
+                ylen = abs(y1c-y2c) # chiều dài trục y (giá trị tuyệt đối)
                 llen = hypot(xlen, ylen)
-                carea = xlen*ylen
+                carea = xlen*ylen # diện tích hình chữ nhật
+
+                # tính chiều dài trung bình nếu nó gần đúng là hình vuông
                 alen = None
                 if max(xlen, ylen) > 0 and min(xlen, ylen)/max(xlen, ylen) >= 0.95:
                     alen = (xlen+ylen)/2
@@ -496,22 +495,23 @@ cv2.setMouseCallback(framename,mouse_event)
 # object counting function
 #-------------------------------
 
+# đếm đối tượng 
 def count_objects(frame):
     global object_count
 
-    frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(frame_gray, (auto_blur, auto_blur), 0)
-    _, thresh = cv2.threshold(blurred, auto_threshold, 255, cv2.THRESH_BINARY)
-    thresh = ~thresh  # Invert binary image
+    frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)    # chuyển đổi khung hình sang ảnh xám
+    blurred = cv2.GaussianBlur(frame_gray, (auto_blur, auto_blur), 0) # làm mờ ảnh để giảm nhiễu
+    _, thresh = cv2.threshold(blurred, auto_threshold, 255, cv2.THRESH_BINARY) # ngưỡng hóa ảnh xám thành ảnh nhị phân (đen/trắng)
+    thresh = ~thresh  # đảo ngược ảnh nhị phân 
     
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    object_count = 0  # Reset counter each frame
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # tìm các đường viền trong ảnh
+    object_count = 0  # khởi tạo biến đếm đối tượng
 
-    for c in contours:
-        x, y, w, h = cv2.boundingRect(c)
-        percent = 100 * w * h / area
+    for c in contours:  # duyệt qua từng vật thể được tìm thấy
+        x, y, w, h = cv2.boundingRect(c) #tính hcn bao quanh vật thể
+        percent = 100 * w * h / area #tính diện tích vật thể so với diện tích khung hình
 
-        # Filter objects by size
+        # bỏ qua các vật thể quá nhỏ hoặc quá lớn
         if percent < auto_percent or percent > 60:
             continue
 
@@ -523,7 +523,7 @@ def count_objects(frame):
     return frame, object_count
 
 #-------------------------------
-# auto measurement function
+# Chức năng đo tự động
 #-------------------------------
 
 def auto_measure(frame):
@@ -538,7 +538,7 @@ def auto_measure(frame):
     for c in contours:
         x1, y1, w, h = cv2.boundingRect(c)
         x2, y2 = x1 + w, y1 + h
-        x3, y3 = x1 + (w / 2), y1 + (h / 2)
+        x3, y3 = x1 + (w / 2), y1 + (h / 2) # tâm của hình chữ nhật
         percent = 100 * w * h / area
         
         if percent < auto_percent or percent > 60:
@@ -551,7 +551,7 @@ def auto_measure(frame):
         alen = 0
         if max(xlen, ylen) > 0 and min(xlen, ylen) / max(xlen, ylen) >= 0.95:
             alen = (xlen + ylen) / 2              
-        carea = xlen * ylen
+        carea = xlen * ylen # diện tích thực tế của hình chữ nhật
 
         draw.rect(frame, x1, y1, x2, y2, weight=2, color='red')
         draw.add_text(frame, f'{xlen:.2f}', x1 - ((x1 - x2) / 2), min(y1, y2) - 8, center=True, color='red')
@@ -563,61 +563,59 @@ def auto_measure(frame):
         else:
             draw.add_text(frame, f'{ylen:.2f}', x1 - 4, (y1 + y2) / 2, middle=True, right=True, color='red')
 
-        # Auto save measurement for valid objects
+        # Tự động lưu phép đo cho các vật thể hợp lệ
         if percent >= auto_percent and percent <= 60:
-            time.sleep(0.1)
-            llen = hypot(xlen, ylen)
+            time.sleep(0.1) # dừng chương trình 0.1s tránh lỗi
+            llen = hypot(xlen, ylen) # chiều dài đường chéo
             history.add_measurement('auto', xlen, ylen, llen, carea, alen if alen else None, True)
 
     return frame
 
 #-------------------------------
-# shape classification function
+# Chức năng phân loại hình dạng
 #-------------------------------
 
 def classify_shapes(frame):
-    # Convert to grayscale and threshold
+    # chuyển xang ảnh xám, làm mờ và ngươgng hóa
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     _, thresh = cv2.threshold(blurred, 127, 255, cv2.THRESH_BINARY)
-    thresh = ~thresh  # invert
+    thresh = ~thresh  
     
-    # Find contours
+    # tìm các đường viền trong ảnh
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
     for c in contours:
-        # Approximate the contour
-        peri = cv2.arcLength(c, True)
-        approx = cv2.approxPolyDP(c, 0.04 * peri, True)
+        peri = cv2.arcLength(c, True) # chu vi của đường viền
+        approx = cv2.approxPolyDP(c, 0.04 * peri, True) # làm tròn đường viền để giảm số lượng điểm
         
-        # Get bounding rect
         x, y, w, h = cv2.boundingRect(approx)
         cx = x + w//2
         cy = y + h//2
         
-        # Skip small contours
-        if w * h < 100:  # minimum area threshold
+        # Bỏ qua các hình quá nhỏ (100 pixels)
+        if w * h < 100:  
             continue
             
-        # Classify shape based on number of vertices
+        # Phân loại hình dạng dựa trên số đỉnh
         shape = "unknown"
         if len(approx) == 3:
-            shape = "triangle"
+            shape = "triangle" # hình tam giác
         elif len(approx) == 4:
-            # Compute aspect ratio to distinguish square from rectangle
+            # Kiểm tra tỷ lệ khung hình để phân biệt hình vuông và hình chữ nhật
             aspect_ratio = float(w) / h
             shape = "square" if 0.95 <= aspect_ratio <= 1.05 else "rectangle"
         elif len(approx) == 5:
-            shape = "pentagon"
+            shape = "pentagon" # hình ngũ giác
         elif len(approx) == 6:
-            shape = "hexagon"
+            shape = "hexagon" # hình lục giác
         else:
-            # For circles/ovals, check circularity
+            # đối với hình tròn hoặc oval, kiểm tra độ tròn
             area = cv2.contourArea(c)
             circularity = 4 * np.pi * area / (peri * peri)
             shape = "circle" if circularity > 0.8 else "oval"
         
-        # Draw the shape and label
+        # vẽ hình dạnh và ghi nhãn
         draw.rect(frame, x, y, x+w, y+h, weight=1, color='blue')
         draw.add_text(frame, shape, cx, cy, color='yellow', center=True)
     
@@ -627,7 +625,7 @@ def classify_shapes(frame):
 # main loop
 #-------------------------------
 
-# Create capture folder if not exists
+# tạo thư mục chụp nếu k tồn tại
 if not os.path.exists(capture_folder):
     os.makedirs(capture_folder)
 
@@ -655,23 +653,24 @@ while True:
 
     # History mode
     if key_flags['history']:
-        draw.crosshairs(frame0, 5, weight=2, color='yellow')
+        draw.crosshairs(frame0, 5, weight=2, color='yellow')  # small crosshairs
         text.append('')
         text.append(f'HISTORY MODE')
         text.append(f'TOTAL MEASUREMENTS: {len(history.measurements)}')
         text.append('')
 
+        # hiển thị đo lường gần đây
         recent = history.get_recent_measurements(5)
         if recent:
             text.append('RECENT MEASUREMENTS:')
-            for i, m in enumerate(reversed(recent)):
+            for i, m in enumerate(reversed(recent)):   # lặp qua các đo lường gần đây
                 type_str = 'AUTO' if m['auto_mode'] else 'MANUAL'
                 avg_str = f", Avg:{m.get('average_length', 'N/A')}" if m.get('average_length') else ""
-                text.append(f'{i+1}. {m["timestamp"]} [{type_str}]')
-                text.append(f'   X:{m["x_length"]} Y:{m["y_length"]} L:{m["diagonal_length"]}{avg_str}')
-                text.append(f'   Area:{m["area"]} {m["unit"]}')
+                text.append(f'{i+1}. {m["timestamp"]} [{type_str}]') # hiển thị thời gian và loại đo lường
+                text.append(f'   X:{m["x_length"]} Y:{m["y_length"]} L:{m["diagonal_length"]}{avg_str}') # hiển thị chiều dài x, y, đường chéo và chiều dài trung bình (nếu có)
+                text.append(f'   Area:{m["area"]} {m["unit"]}') # hiển thị diện tích và đơn vị đo lường
                 if i < len(recent) - 1:
-                    text.append('')
+                    text.append('')  # thêm dòng trống giữa các mục đo lường
         else:
             text.append('NO MEASUREMENTS RECORDED')
 
@@ -797,7 +796,7 @@ while True:
                 draw.add_text(frame0, f'{ylen:.2f}', x1 - 4, (y1 + y2) / 2, middle=True, right=True, color='red')
                 draw.add_text(frame0, f'{llen:.2f}', x2 + 8, y2 - 4, color='green')
 
-    # Add usage key
+    # Thêm khóa sử dụng
     text.append('')
     text.append(f'Q = QUIT')
     text.append(f'SPACE = CAPTURE OBJECT')
